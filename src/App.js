@@ -44,6 +44,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { CustomerInboxProvider } from "@/context/CustomerInboxContext";
 import LiveChat from "@/components/LiveChat";
 import Footer from "@/components/Footer";
+import CompareDock from "@/components/CompareDock";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
 import { cartAPI, profileAPI, getApiErrorMessage } from "@/api/service";
@@ -333,6 +334,7 @@ function App() {
               <Route path="/marketplace" element={<MarketplacePage />} />
             </Routes>
             <LiveChat user={user} />
+            <CompareDock />
             <Footer />
             <Toaster />
           </BrowserRouter>

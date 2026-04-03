@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { cartAPI } from "@/api/service";
 import { useToast } from "@/hooks/use-toast";
+import { getCurrentUserType, RETAIL_MAX_ORDER_QTY } from "@/utils/pricing";
 
 const CartContext = createContext();
 
@@ -43,10 +44,18 @@ export function CartProvider({ children }) {
     if (!productId) return;
 
     if (!token) {
-      setItems(prev => {
-        const existing = prev.find(item => item.id === productId);
-        if (existing) return prev.map(item => item.id === productId ? { ...item, quantity: item.quantity + (product.quantity || 1) } : item);
-        return [...prev, { ...product, id: productId, quantity: product.quantity || 1 }];
+      const add = product.quantity || 1;
+      const cap = getCurrentUserType() === "wholesale" ? Number.MAX_SAFE_INTEGER : RETAIL_MAX_ORDER_QTY;
+      setItems((prev) => {
+        const existing = prev.find((item) => item.id === productId);
+        if (existing) {
+          return prev.map((item) =>
+            item.id === productId
+              ? { ...item, quantity: Math.min(cap, item.quantity + add) }
+              : item
+          );
+        }
+        return [...prev, { ...product, id: productId, quantity: Math.min(cap, add) }];
       });
     } else {
       try {
@@ -61,7 +70,9 @@ export function CartProvider({ children }) {
   const updateQuantity = useCallback(async (productId, newQuantity) => {
     const token = localStorage.getItem("oceanBazarToken");
     if (!token) {
-      setItems(prev => prev.map(item => item.id === productId ? { ...item, quantity: newQuantity } : item));
+      const cap = getCurrentUserType() === "wholesale" ? Number.MAX_SAFE_INTEGER : RETAIL_MAX_ORDER_QTY;
+      const q = Math.max(0, Math.min(cap, newQuantity));
+      setItems((prev) => prev.map((item) => (item.id === productId ? { ...item, quantity: q } : item)));
     } else {
       try {
         await cartAPI.update({ productId, quantity: newQuantity });

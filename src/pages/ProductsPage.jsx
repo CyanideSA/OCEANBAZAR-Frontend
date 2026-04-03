@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import { SlidersHorizontal, ArrowRight, X } from 'lucide-react';
@@ -13,6 +13,8 @@ import { logger } from '@/utils/logger';
 import { CATEGORY_FALLBACK } from '../constants/categories';
 import { useWishlist } from '../context/WishlistContext';
 import { useCustomerInbox } from '../context/CustomerInboxContext';
+import { useSiteSettings } from '../context/SiteSettingsContext';
+import WaveBannerCarousel from '../components/WaveBannerCarousel';
 
 const PRICE_SLIDER_MAX = 1000;
 
@@ -26,11 +28,14 @@ const ProductsPage = ({ onAddToCart }) => {
   const { toast } = useToast();
   const { toggleWishlist, isWishlisted } = useWishlist();
   const { catalogLive } = useCustomerInbox();
+  const site = useSiteSettings();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [priceRange, setPriceRange] = useState([0, PRICE_SLIDER_MAX]);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [brandFilter, setBrandFilter] = useState('');
+  const [minRating, setMinRating] = useState('');
   const [sortBy, setSortBy] = useState('relevance');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -51,6 +56,18 @@ const ProductsPage = ({ onAddToCart }) => {
   const categoryQuery = searchParams.get('category') || '';
   const featuredSaleOnly = searchParams.get('featuredSale') === 'true';
 
+  const placementBanners = useMemo(() => {
+    const raw = (site.productBanners || []).filter((b) => b && b.imageUrl && b.enabled !== false);
+    const sorted = [...raw].sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+    return sorted.filter((b) => {
+      const p = String(b.placement || 'ALL').toUpperCase();
+      if (p === 'ALL') return true;
+      if (p === 'FEATURED') return featuredSaleOnly;
+      if (p === 'CATEGORY') return Boolean(categoryQuery) && String(b.category || '').trim() === categoryQuery;
+      return false;
+    });
+  }, [site.productBanners, featuredSaleOnly, categoryQuery]);
+
   useEffect(() => {
     fetchCategories();
   }, []);
@@ -68,7 +85,9 @@ const ProductsPage = ({ onAddToCart }) => {
     priceRange,
     verifiedOnly,
     sortBy,
-    effectivePerPage
+    effectivePerPage,
+    brandFilter,
+    minRating
   ]);
 
   const catalogSeqSeenRef = useRef(null);
@@ -121,7 +140,11 @@ const ProductsPage = ({ onAddToCart }) => {
       if (priceRange[1] < PRICE_SLIDER_MAX) {
         params.maxPrice = priceRange[1];
       }
-      
+      const b = String(brandFilter || '').trim();
+      if (b) params.brand = b;
+      const r = Number(minRating);
+      if (Number.isFinite(r) && r > 0) params.minRating = r;
+
       const response = await productAPI.getAll(params);
       const newProducts = response.data.products || [];
 
@@ -177,6 +200,8 @@ const ProductsPage = ({ onAddToCart }) => {
     setSelectedCategories([]);
     setPriceRange([0, PRICE_SLIDER_MAX]);
     setVerifiedOnly(false);
+    setBrandFilter('');
+    setMinRating('');
     setSortBy('relevance');
     const next = new URLSearchParams();
     if (searchQuery) next.set('search', searchQuery);
@@ -191,7 +216,15 @@ const ProductsPage = ({ onAddToCart }) => {
     });
   };
 
-  const hasActiveFilters = selectedCategories.length > 0 || verifiedOnly || categoryQuery || featuredSaleOnly || priceRange[0] > 0 || priceRange[1] < PRICE_SLIDER_MAX;
+  const hasActiveFilters =
+    selectedCategories.length > 0 ||
+    verifiedOnly ||
+    categoryQuery ||
+    featuredSaleOnly ||
+    priceRange[0] > 0 ||
+    priceRange[1] < PRICE_SLIDER_MAX ||
+    Boolean(String(brandFilter || '').trim()) ||
+    Boolean(String(minRating || '').trim());
 
   const FilterContent = ({ isMobile = false }) => (
     <>
@@ -248,6 +281,30 @@ const ProductsPage = ({ onAddToCart }) => {
         <Label htmlFor={`${isMobile ? 'mobile-' : ''}verified`} className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
           Verified sellers only
         </Label>
+      </div>
+
+      <div className="mb-6">
+        <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3 text-sm">Brand</h4>
+        <input
+          type="text"
+          value={brandFilter}
+          onChange={(e) => setBrandFilter(e.target.value)}
+          placeholder="e.g. Samsung"
+          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-[#5BA3D0]/30 focus:border-[#5BA3D0]"
+        />
+      </div>
+
+      <div className="mb-6">
+        <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3 text-sm">Minimum rating</h4>
+        <select
+          value={minRating}
+          onChange={(e) => setMinRating(e.target.value)}
+          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-[#5BA3D0]/30 focus:border-[#5BA3D0]"
+        >
+          <option value="">Any</option>
+          <option value="4">4+ stars</option>
+          <option value="4.5">4.5+ stars</option>
+        </select>
       </div>
 
       {isMobile && (
@@ -369,6 +426,14 @@ const ProductsPage = ({ onAddToCart }) => {
 
           {/* Products Grid */}
           <div className="flex-1 min-w-0">
+            {!site.loading && placementBanners.length > 0 ? (
+              <WaveBannerCarousel
+                slides={placementBanners}
+                rotationMs={site.defaultBannerRotationMs || 6000}
+                variant="compact"
+                compactSpacing
+              />
+            ) : null}
             {loading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4 sm:gap-5">
                 {[...Array(9)].map((_, i) => (

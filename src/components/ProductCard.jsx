@@ -4,15 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { productDetailPath } from '../utils/productId';
-import { getCurrentUserType, getDisplayPrices } from '../utils/pricing';
+import { getCurrentUserType, getDisplayPrices, getMsrpPerUnit } from '../utils/pricing';
 import { getDisplayProductTitle } from '../utils/productDisplay';
+import { normalizeProductImageUrl } from '../utils/mediaUrl';
 
 const ProductCard = ({ product, onAddToCart, onToggleWishlist, isWishlisted }) => {
   const navigate = useNavigate();
   const productId = product.id || product._id;
   const cardTitle = getDisplayProductTitle(product);
   const imageSrc =
-    product?.image ||
+    normalizeProductImageUrl(product?.image) ||
     'https://placehold.co/600x600/f0f4f8/5ba3d0?text=OceanBazar';
   const rating = Number(product?.rating ?? 0);
   const orders = Number(product?.orders ?? 0);
@@ -20,6 +21,7 @@ const ProductCard = ({ product, onAddToCart, onToggleWishlist, isWishlisted }) =
   const dispatchLabel = isFeatured ? 'High demand - fast dispatch' : 'Standard dispatch';
   const userType = getCurrentUserType();
   const pricing = getDisplayPrices(product, userType, 1);
+  const msrp = getMsrpPerUnit(product);
 
   return (
     <div
@@ -71,6 +73,11 @@ const ProductCard = ({ product, onAddToCart, onToggleWishlist, isWishlisted }) =
         >
           {cardTitle}
         </h3>
+        {productId ? (
+          <p className="text-[10px] font-mono text-gray-400 dark:text-gray-500 truncate" title={String(productId)}>
+            ID {String(productId)}
+          </p>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-0.5 shrink-0">
@@ -92,6 +99,9 @@ const ProductCard = ({ product, onAddToCart, onToggleWishlist, isWishlisted }) =
 
         <div className="flex items-baseline gap-2 flex-wrap">
           <div className="text-lg font-bold text-gray-900 dark:text-gray-50 tracking-tight">${pricing.unitPrice.toFixed(2)}</div>
+          {msrp != null && msrp > pricing.unitPrice + 1e-6 ? (
+            <div className="text-xs text-gray-500 dark:text-gray-400 line-through">${msrp.toFixed(2)}</div>
+          ) : null}
           {pricing.strikeRetailForWholesale ? (
             <div className="text-xs text-gray-500 line-through">${pricing.retailBase.toFixed(2)}</div>
           ) : null}

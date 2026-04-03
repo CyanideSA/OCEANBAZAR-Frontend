@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Settings, User, LogOut, CreditCard, Bell } from 'lucide-react';
+import { LayoutDashboard, Package, Settings, User, LogOut, CreditCard, Bell, Heart } from 'lucide-react';
 import { profileAPI } from '../api/service';
 import { useTheme } from '../context/ThemeContext';
 import { useCustomerInbox } from '../context/CustomerInboxContext';
@@ -44,6 +44,7 @@ const AccountLayout = ({ children }) => {
 
   const menuItems = [
     { path: '/account/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/wishlist', label: 'Wishlist', icon: Heart },
     { path: '/account/orders', label: 'Orders', icon: Package },
     { path: '/notifications', label: 'Notifications', icon: Bell },
     { path: '/account/payments', label: 'Payment methods', icon: CreditCard },

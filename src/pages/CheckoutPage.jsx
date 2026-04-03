@@ -117,6 +117,8 @@ const CheckoutPage = ({ cartItems }) => {
 
       if (paymentMethod === "nagad") {
         await paymentAPI.nagadPlaceholder({ orderId });
+      } else if (paymentMethod === "sslcommerz") {
+        await paymentAPI.sslcommerzPlaceholder({ orderId });
       } else {
         await paymentAPI.bkashPlaceholder({ orderId });
       }
@@ -236,7 +238,7 @@ const CheckoutPage = ({ cartItems }) => {
             <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-soft dark:border-gray-800 dark:bg-gray-800/80">
               <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-gray-50">Payment</h2>
               <p className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-                Choose your payment method. This is placeholder integration and is ready for real BKash/Nagad keys later.
+                Choose your payment method. bKash, Nagad, and SSLCOMMERZ use test/placeholder flows today; backend routes are ready for live API keys.
               </p>
               <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-900/60">
                 <p className="text-xs leading-relaxed text-gray-800 dark:text-gray-200">
@@ -255,6 +257,7 @@ const CheckoutPage = ({ cartItems }) => {
               >
                 <option value="bkash">bKash</option>
                 <option value="nagad">Nagad</option>
+                <option value="sslcommerz">SSLCOMMERZ</option>
               </select>
             </div>
           </div>

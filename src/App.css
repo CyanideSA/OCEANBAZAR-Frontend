@@ -66,3 +66,23 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* Ocean banner: seamless drifting wave (used by WaveBannerCarousel) */
+@keyframes ob-wave-drift {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.ob-wave-track {
+  animation: ob-wave-drift 16s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-wave-track {
+    animation: none;
+  }
+}

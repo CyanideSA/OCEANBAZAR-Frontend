@@ -8,6 +8,15 @@ const defaults = {
   twitterUrl: "",
   instagramUrl: "",
   youtubeUrl: "",
+  heroSlides: [],
+  productBanners: [],
+  featuredProductIds: [],
+  bestDealsProductIds: [],
+  newArrivalsProductIds: [],
+  testimonials: [],
+  trustBadges: [],
+  defaultBannerRotationMs: 6000,
+  testimonialCarouselMs: 6000,
 };
 
 const SiteSettingsContext = createContext({
@@ -48,6 +57,18 @@ export function SiteSettingsProvider({ children }) {
         twitterUrl: coerceText(src.twitterUrl, ""),
         instagramUrl: coerceText(src.instagramUrl, ""),
         youtubeUrl: coerceText(src.youtubeUrl, ""),
+        heroSlides: Array.isArray(src.heroSlides) ? src.heroSlides : [],
+        productBanners: Array.isArray(src.productBanners) ? src.productBanners : [],
+        featuredProductIds: Array.isArray(src.featuredProductIds) ? src.featuredProductIds : [],
+        bestDealsProductIds: Array.isArray(src.bestDealsProductIds) ? src.bestDealsProductIds : [],
+        newArrivalsProductIds: Array.isArray(src.newArrivalsProductIds) ? src.newArrivalsProductIds : [],
+        testimonials: Array.isArray(src.testimonials) ? src.testimonials : [],
+        trustBadges: Array.isArray(src.trustBadges) ? src.trustBadges : [],
+        defaultBannerRotationMs: Number(src.defaultBannerRotationMs) > 0 ? Number(src.defaultBannerRotationMs) : 6000,
+        testimonialCarouselMs:
+          Number(src.testimonialCarouselMs) > 0 ? Number(src.testimonialCarouselMs) : Number(src.defaultBannerRotationMs) > 0
+            ? Number(src.defaultBannerRotationMs)
+            : 6000,
       });
     } catch (e) {
       setError(e?.message || "Could not load site settings");

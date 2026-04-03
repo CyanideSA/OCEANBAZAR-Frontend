@@ -133,6 +133,7 @@ export const paymentAPI = {
   placeholder: (data) => api.post('/payments/placeholder', data),
   bkashPlaceholder: (data) => api.post('/payments/bkash/placeholder', data),
   nagadPlaceholder: (data) => api.post('/payments/nagad/placeholder', data),
+  sslcommerzPlaceholder: (data) => api.post('/payments/sslcommerz/placeholder', data),
 };
 
 export const wholesaleAPI = {

@@ -5,12 +5,13 @@ import { Button } from '../components/ui/button';
 import ProductCard from '../components/ProductCard';
 import { productAPI } from '../api/service';
 import { productDetailPath } from '../utils/productId';
-import { getCurrentUserType } from '../utils/pricing';
+import { getCurrentUserType, RETAIL_MAX_ORDER_QTY } from '../utils/pricing';
 import { computeCheckoutTotals, GST_RATE } from '../utils/checkoutTotals';
 
 const CartPage = ({ cartItems, onUpdateQuantity, onRemoveFromCart, onAddToCart }) => {
   const navigate = useNavigate();
   const userType = getCurrentUserType();
+  const qtyCap = userType === 'wholesale' ? 999999 : RETAIL_MAX_ORDER_QTY;
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const { gst, serviceFee, shipping, total } = computeCheckoutTotals(subtotal);
@@ -150,7 +151,7 @@ const CartPage = ({ cartItems, onUpdateQuantity, onRemoveFromCart, onAddToCart }
                           </span>
                           <button
                             type="button"
-                            onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                            onClick={() => onUpdateQuantity(item.id, Math.min(qtyCap, item.quantity + 1))}
                             className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors rounded-r-lg text-gray-700 dark:text-gray-200"
                             aria-label={`Increase quantity of ${item.name}`}
                           >

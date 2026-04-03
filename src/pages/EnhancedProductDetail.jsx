@@ -7,7 +7,15 @@ import ProductCard from '../components/ProductCard';
 import { productAPI, wholesaleAPI } from '../api/service';
 import { normalizeProductIdParam, productDetailPath } from '../utils/productId';
 import { getDisplayProductTitle } from '../utils/productDisplay';
-import { getDisplayPrices } from '../utils/pricing';
+import {
+  getDisplayPrices,
+  maxOrderQuantityForUser,
+  RETAIL_MAX_ORDER_QTY,
+  buildWholesalePricingPreview,
+  getMsrpPerUnit,
+  getFullRetailLineTotal,
+} from '../utils/pricing';
+import { normalizeProductImageUrl, resolveMediaUrl } from '../utils/mediaUrl';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useComparison } from '../context/ComparisonContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -37,6 +45,7 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
   const { catalogLive } = useCustomerInbox();
   const [product, setProduct] = React.useState(null);
   const [quantity, setQuantity] = React.useState(1);
+  const [maxOrderQty, setMaxOrderQty] = React.useState(RETAIL_MAX_ORDER_QTY);
   const [activeMediaIndex, setActiveMediaIndex] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [userType, setUserType] = React.useState('retail');
@@ -77,6 +86,13 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
   }, [id]);
 
   React.useEffect(() => {
+    if (!product) return;
+    const cap = maxOrderQuantityForUser(product, userType);
+    setMaxOrderQty(cap);
+    setQuantity((q) => Math.min(Math.max(1, q), cap));
+  }, [product, userType]);
+
+  React.useEffect(() => {
     if (product?.name) {
       document.title = `${getDisplayProductTitle(product)} · OceanBazar`;
     }
@@ -102,7 +118,6 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
         navigate(productDetailPath(canonicalId), { replace: true });
       }
       prod.availability = 'in_stock';
-      prod.maxOrderQty = 25;
       
       // Use backend attributes or fallback to defaults
       if (!prod.attributes || Object.keys(prod.attributes).length === 0) {
@@ -225,18 +240,34 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
   };
 
   const calculatePrice = () => {
-    if (!product) return { total: 0, discount: 0, originalTotal: 0, unitPrice: 0, retailBase: 0 };
+    if (!product) {
+      return {
+        unitPrice: 0,
+        retailBase: 0,
+        wholesaleBase: 0,
+        payTotal: '0.00',
+        msrpTotal: null,
+        preTierRetailTotal: '0.00',
+        saveVsMsrp: null,
+        saveVsPreTier: null,
+      };
+    }
     const pricing = getDisplayPrices(product, userType, quantity);
-    const total = pricing.unitPrice * quantity;
-    const originalTotal = (userType === 'wholesale' ? pricing.wholesaleBase : pricing.retailBase) * quantity;
-    const discount = Math.max(0, originalTotal - total);
+    const pay = pricing.unitPrice * quantity;
+    const msrpUnit = getMsrpPerUnit(product);
+    const msrpTot = msrpUnit != null ? msrpUnit * quantity : null;
+    const preTierRetail = getFullRetailLineTotal(product, quantity);
+    const saveMsrp = msrpTot != null && msrpTot > pay + 1e-6 ? msrpTot - pay : null;
+    const savePre = preTierRetail > pay + 1e-6 ? preTierRetail - pay : null;
     return {
       unitPrice: pricing.unitPrice,
       retailBase: pricing.retailBase,
       wholesaleBase: pricing.wholesaleBase,
-      total: total.toFixed(2),
-      discount: discount.toFixed(2),
-      originalTotal: originalTotal.toFixed(2)
+      payTotal: pay.toFixed(2),
+      msrpTotal: msrpTot != null ? msrpTot.toFixed(2) : null,
+      preTierRetailTotal: preTierRetail.toFixed(2),
+      saveVsMsrp: saveMsrp != null ? saveMsrp.toFixed(2) : null,
+      saveVsPreTier: savePre != null ? savePre.toFixed(2) : null,
     };
   };
 
@@ -261,8 +292,13 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
     }
   };
 
-  const images = (product?.images && product.images.length > 0 ? product.images : product?.image ? [product.image, product.image, product.image] : []).filter(Boolean);
-  const videos = (product?.videos || []).filter(Boolean);
+  const images = (product?.images && product.images.length > 0 ? product.images : product?.image ? [product.image, product.image, product.image] : [])
+    .map((u) => normalizeProductImageUrl(u))
+    .filter(Boolean);
+  const videos = (product?.videos || [])
+    .filter(Boolean)
+    .map((v) => resolveMediaUrl(String(v).trim()))
+    .filter(Boolean);
   const galleryItems = [
     ...images.map((src, idx) => ({ type: 'image', src, key: `img-${idx}` })),
     ...videos.map((src, idx) => ({ type: 'video', src, key: `vid-${idx}` })),
@@ -318,6 +354,15 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
 
   const displayTitle = getDisplayProductTitle(product);
   const pricing = calculatePrice();
+  const wholesaleTableRows =
+    Array.isArray(product.wholesalePricing) && product.wholesalePricing.some((r) => r && r.kind)
+      ? product.wholesalePricing
+      : buildWholesalePricingPreview(product);
+  const wholesaleRowsFiltered =
+    userType === 'wholesale' && quantity > RETAIL_MAX_ORDER_QTY
+      ? wholesaleTableRows.filter((r) => r && r.kind !== 'retail_volume')
+      : wholesaleTableRows;
+  const showRetailPricingTable = userType === 'retail' || (userType === 'wholesale' && quantity <= RETAIL_MAX_ORDER_QTY);
 
   const reviews = [
     { name: 'Ahmed Khan', rating: 5, date: '2024-03-10', comment: 'Excellent quality! Highly recommended for business use.', verified: true },
@@ -444,26 +489,68 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
               </div>
 
               <div className="mb-6 p-5 sm:p-6 bg-gradient-to-br from-gray-50 to-gray-50/50 dark:from-gray-800 dark:to-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700">
-                <div className="flex items-baseline gap-3 mb-2">
-                  <span className="text-4xl font-bold text-[#5BA3D0]">${pricing.total}</span>
-                  {pricing.discount > 0 && (
+                <div className="flex flex-col gap-2 sm:gap-3 mb-4">
+                  {pricing.msrpTotal ? (
+                    <span className="inline-flex w-fit items-center text-sm font-medium text-amber-900/90 dark:text-amber-200/95 line-through px-3 py-1 rounded-full border-2 border-amber-400/70 bg-amber-400/15 dark:border-amber-500/50 dark:bg-amber-500/10">
+                      ${pricing.msrpTotal}
+                    </span>
+                  ) : null}
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="text-3xl sm:text-4xl font-bold text-[#5BA3D0]">${pricing.payTotal}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">for {quantity} {quantity === 1 ? 'unit' : 'units'}</span>
+                  </div>
+                  {Number(pricing.preTierRetailTotal) > Number(pricing.payTotal) + 1e-6 ? (
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="text-gray-500 dark:text-gray-400 line-through">${pricing.preTierRetailTotal}</span>
+                      <span className="text-green-600 dark:text-green-400 font-semibold">
+                        Save ${pricing.saveVsPreTier}
+                      </span>
+                    </div>
+                  ) : null}
+                  {pricing.msrpTotal && Number(pricing.msrpTotal) > Number(pricing.payTotal) + 1e-6 ? (
+                    <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+                      vs. list ${pricing.msrpTotal}: save ${pricing.saveVsMsrp}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mb-4 flex flex-wrap gap-x-2 gap-y-1 items-center">
+                  {userType === 'wholesale' && quantity > RETAIL_MAX_ORDER_QTY ? (
                     <>
-                      <span className="text-lg text-gray-500 dark:text-gray-400 line-through">${pricing.originalTotal}</span>
-                      <span className="text-lg text-green-600 dark:text-green-400 font-semibold">Save ${pricing.discount}</span>
+                      <span>
+                        <span className="font-medium text-gray-800 dark:text-gray-100">Wholesale:</span> ${pricing.wholesaleBase.toFixed(2)} / unit
+                      </span>
+                      <span className="text-gray-400">|</span>
+                      <span>
+                        <span className="font-medium">Retail:</span> ${pricing.retailBase.toFixed(2)} / unit
+                      </span>
+                      <span className="text-gray-400">|</span>
+                      <span className="inline-flex items-center gap-1 font-medium text-[#5BA3D0]" title="No retail cap for approved wholesale buyers">
+                        MOQ: <span className="text-base leading-none">∞</span>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        <span className="font-medium text-gray-800 dark:text-gray-100">Retail:</span> ${pricing.retailBase.toFixed(2)} / unit
+                      </span>
+                      <span className="text-gray-400">|</span>
+                      <span>
+                        Max: {Math.min(maxOrderQty, RETAIL_MAX_ORDER_QTY)} units (wholesale tiers: {RETAIL_MAX_ORDER_QTY + 1}+)
+                      </span>
+                      {userType === 'wholesale' ? (
+                        <>
+                          <span className="text-gray-400">|</span>
+                          <span className="text-emerald-700 dark:text-emerald-400 font-medium">Wholesale account — switch qty to {RETAIL_MAX_ORDER_QTY + 1}+ for volume price</span>
+                        </>
+                      ) : null}
                     </>
                   )}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                  {userType === 'wholesale'
-                    ? <>Wholesale: ${pricing.wholesaleBase.toFixed(2)} / unit {pricing.retailBase > pricing.wholesaleBase ? <span className="line-through ml-2">Retail: ${pricing.retailBase.toFixed(2)}</span> : null}</>
-                    : <>Retail: ${pricing.retailBase.toFixed(2)} / unit</>
-                  }{" "}
-                  | Max: {product.maxOrderQty} units
-                </div>
-                
-                {userType === 'retail' ? (
+
+                {showRetailPricingTable ? (
                   <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-[#D0E7F5] dark:border-gray-600">
                     <h4 className="font-semibold text-gray-800 dark:text-gray-100 mb-3">Retail Pricing Table</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">1–{RETAIL_MAX_ORDER_QTY} units (volume discounts on base retail)</p>
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b dark:border-gray-600">
@@ -473,28 +560,27 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {product.discountTiers && product.discountTiers.length > 0 ? (
-                          product.discountTiers.map((tier, idx) => (
-                            <tr key={idx} className="border-b dark:border-gray-600">
-                              <td className="py-2 text-gray-700 dark:text-gray-300">
-                                {tier.maxQty ? `${tier.minQty}-${tier.maxQty} units` : `${tier.minQty}+ units`}
-                              </td>
-                              <td className={`py-2 ${(Number(tier.discountPct ?? tier.discountPercent ?? tier.discount) || 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                                {(Number(tier.discountPct ?? tier.discountPercent ?? tier.discount) || 0) > 0 ? `${Math.round((Number(tier.discountPct ?? tier.discountPercent ?? tier.discount) > 1 ? Number(tier.discountPct ?? tier.discountPercent ?? tier.discount) : Number(tier.discountPct ?? tier.discountPercent ?? tier.discount) * 100))}% off` : '0%'}
-                              </td>
-                              <td className="text-right py-2 font-semibold text-gray-800 dark:text-gray-100">
-                                ${(pricing.retailBase * (1 - ((Number(tier.discountPct ?? tier.discountPercent ?? tier.discount) > 1 ? Number(tier.discountPct ?? tier.discountPercent ?? tier.discount) / 100 : Number(tier.discountPct ?? tier.discountPercent ?? tier.discount) || 0)))).toFixed(2)}
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <>
-                            <tr className="border-b dark:border-gray-600"><td className="py-2 text-gray-700 dark:text-gray-300">1 unit</td><td className="py-2 text-gray-700 dark:text-gray-300">0%</td><td className="text-right py-2 font-semibold text-gray-800 dark:text-gray-100">${product.price}</td></tr>
-                            <tr className="border-b dark:border-gray-600"><td className="py-2 text-gray-700 dark:text-gray-300">2-10 units</td><td className="py-2 text-green-600 dark:text-green-400">5% off</td><td className="text-right py-2 font-semibold text-gray-800 dark:text-gray-100">${(product.price * 0.95).toFixed(2)}</td></tr>
-                            <tr className="border-b dark:border-gray-600"><td className="py-2 text-gray-700 dark:text-gray-300">11-20 units</td><td className="py-2 text-green-600 dark:text-green-400">10% off</td><td className="text-right py-2 font-semibold text-gray-800 dark:text-gray-100">${(product.price * 0.90).toFixed(2)}</td></tr>
-                            <tr><td className="py-2 text-gray-700 dark:text-gray-300">21-25 units</td><td className="py-2 text-green-600 dark:text-green-400">15% off</td><td className="text-right py-2 font-semibold text-gray-800 dark:text-gray-100">${(product.price * 0.85).toFixed(2)}</td></tr>
-                          </>
-                        )}
+                        {(Array.isArray(product.retailPricing) && product.retailPricing.length > 0
+                          ? product.retailPricing
+                          : [
+                              { minQty: 1, maxQty: 1, discount: 0, pricePerUnit: pricing.retailBase },
+                              { minQty: 2, maxQty: 10, discount: 5, pricePerUnit: pricing.retailBase * 0.95 },
+                              { minQty: 11, maxQty: 20, discount: 10, pricePerUnit: pricing.retailBase * 0.9 },
+                              { minQty: 21, maxQty: 25, discount: 15, pricePerUnit: pricing.retailBase * 0.85 },
+                            ]
+                        ).map((tier, idx) => (
+                          <tr key={idx} className="border-b dark:border-gray-600 last:border-0">
+                            <td className="py-2 text-gray-700 dark:text-gray-300">
+                              {tier.maxQty != null && tier.maxQty !== '' ? `${tier.minQty}–${tier.maxQty} units` : `${tier.minQty}+ units`}
+                            </td>
+                            <td className={`py-2 ${Number(tier.discount) > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                              {Number(tier.discount) > 0 ? `${tier.discount}% off` : '0%'}
+                            </td>
+                            <td className="text-right py-2 font-semibold text-gray-800 dark:text-gray-100">
+                              ${Number(tier.pricePerUnit).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -509,22 +595,23 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-b">
-                          <td className="py-2 text-gray-700 dark:text-gray-300">1-25 units</td>
-                          <td className="text-right py-2 font-semibold">${pricing.wholesaleBase.toFixed(2)}</td>
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-2 text-gray-700 dark:text-gray-300">26-99 units (3% off)</td>
-                          <td className="text-right py-2 font-semibold text-green-600">${(pricing.wholesaleBase * 0.97).toFixed(2)}</td>
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-2 text-gray-700 dark:text-gray-300">100-500 units (5% off)</td>
-                          <td className="text-right py-2 font-semibold text-green-600">${(pricing.wholesaleBase * 0.95).toFixed(2)}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-2 text-gray-700 dark:text-gray-300">500+ units (8% off)</td>
-                          <td className="text-right py-2 font-semibold text-green-600">${(pricing.wholesaleBase * 0.92).toFixed(2)}</td>
-                        </tr>
+                        {wholesaleRowsFiltered.map((row, idx) => {
+                          const vol = Number(row.volumeDiscountPct || 0);
+                          const pctLabel = vol > 0 ? ` (${Math.round(vol * 100)}% vol. off)` : '';
+                          const range =
+                            row.maxQty != null && row.maxQty !== ''
+                              ? `${row.minQty}–${row.maxQty} units`
+                              : `${row.minQty}+ units`;
+                          const label = `${range}${pctLabel}`;
+                          return (
+                            <tr key={idx} className="border-b dark:border-gray-600 last:border-0">
+                              <td className="py-2 text-gray-700 dark:text-gray-300">{label}</td>
+                              <td className={`text-right py-2 font-semibold ${vol > 0 ? 'text-green-600 dark:text-green-400' : ''}`}>
+                                ${Number(row.pricePerUnit).toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -545,11 +632,11 @@ const EnhancedProductDetail = ({ onAddToCart }) => {
                     <input
                       type="number"
                       value={quantity}
-                      onChange={(e) => setQuantity(Math.min(product.maxOrderQty, Math.max(1, parseInt(e.target.value) || 1)))}
+                      onChange={(e) => setQuantity(Math.min(maxOrderQty, Math.max(1, parseInt(e.target.value, 10) || 1)))}
                       className="w-20 text-center border-x border-gray-300 dark:border-gray-600 py-2 focus:outline-none bg-background text-foreground dark:bg-gray-800"
                     />
                     <button
-                      onClick={() => setQuantity(Math.min(product.maxOrderQty, quantity + 1))}
+                      onClick={() => setQuantity(Math.min(maxOrderQty, quantity + 1))}
                       className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       aria-label="Increase quantity"
                     >

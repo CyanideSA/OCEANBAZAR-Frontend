@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, Globe, User, Menu, Camera, ChevronDown, ChevronRight, Moon, Sun, X } from 'lucide-react';
+import { Search, ShoppingCart, Globe, User, Menu, Camera, ChevronDown, ChevronRight, Moon, Sun, X, GitCompare } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { useTheme } from '../context/ThemeContext';
@@ -8,6 +8,7 @@ import SideMenu from './SideMenu';
 import { categoryAPI } from '../api/service';
 import { CATEGORY_FALLBACK } from '../constants/categories';
 import { getCategoryIcon } from '../utils/categoryIcons';
+import { useComparison } from '../context/ComparisonContext';
 
 function userInitials(name) {
   if (!name || typeof name !== 'string') return '?';
@@ -19,6 +20,7 @@ function userInitials(name) {
 const Header = ({ cartCount = 0, isLoggedIn = false, user = null, onLogout }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { comparisonCount } = useComparison();
   const [searchQuery, setSearchQuery] = useState('');
   const [showCategories, setShowCategories] = useState(false);
   const [showSideMenu, setShowSideMenu] = useState(false);
@@ -155,6 +157,20 @@ const Header = ({ cartCount = 0, isLoggedIn = false, user = null, onLogout }) =>
               <Globe className="w-4 h-4" />
               <span className="hidden lg:inline text-[13px]">EN-USD</span>
             </button>
+
+            <Link
+              to="/comparison"
+              className="relative h-9 w-9 rounded-lg flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
+              title="Compare products"
+              aria-label="Compare products"
+            >
+              <GitCompare className="w-5 h-5" />
+              {comparisonCount > 0 ? (
+                <span className="absolute -top-1 -right-1 bg-[#5BA3D0] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                  {comparisonCount}
+                </span>
+              ) : null}
+            </Link>
 
             <Link to="/cart" className="relative h-9 w-9 rounded-lg flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200">
               <ShoppingCart className="w-5 h-5" />
