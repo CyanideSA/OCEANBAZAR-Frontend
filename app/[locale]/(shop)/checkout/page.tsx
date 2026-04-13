@@ -145,7 +145,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (activeCart.items.length === 0) {
+  if (!activeCart || activeCart.items.length === 0) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
         <Package className="mx-auto mb-4 h-16 w-16 text-muted-foreground/40" />
@@ -168,7 +168,7 @@ export default function CheckoutPage() {
         <h2 className="text-base font-semibold text-foreground sm:text-lg">{t('orderSummary')}</h2>
 
         <ul className="max-h-48 space-y-2 overflow-y-auto sm:max-h-64 sm:space-y-3">
-          {activeCart.items.map((item) => (
+          {activeCart?.items?.map((item) => (
             <li key={item.id} className="flex gap-3 text-sm">
               <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted sm:h-14 sm:w-14">
                 {item.image ? (
@@ -196,7 +196,7 @@ export default function CheckoutPage() {
             <span>{t('lineMerchandise')}</span>
             <span className="font-medium text-foreground">
               {tc('taka')}
-              {activeCart.subtotal.toLocaleString()}
+              {activeCart?.subtotal?.toLocaleString() ?? 0}
             </span>
           </div>
           {totalsPreview && totalsPreview.discount > 0 && (
@@ -223,7 +223,7 @@ export default function CheckoutPage() {
               {totalsPreview && totalsPreview.shippingFee === 0 ? (
                 <span className="text-emerald-600 dark:text-emerald-400">{t('freeShipping')}</span>
               ) : (
-                `${tc('taka')}${totalsPreview?.shippingFee ?? activeCart.shippingFee}`
+                `${tc('taka')}${totalsPreview?.shippingFee ?? activeCart?.shippingFee ?? 0}`
               )}
             </span>
           </div>
@@ -231,7 +231,7 @@ export default function CheckoutPage() {
             <span>{t('lineVat')}</span>
             <span className="font-medium text-foreground">
               {tc('taka')}
-              {(totalsPreview?.gst ?? activeCart.gst).toLocaleString()}
+              {(totalsPreview?.gst ?? activeCart?.gst ?? 0).toLocaleString()}
             </span>
           </div>
           <div className="flex justify-between text-xs text-muted-foreground/80">
@@ -241,7 +241,7 @@ export default function CheckoutPage() {
             <span>{t('lineService')}</span>
             <span className="font-medium text-foreground">
               {tc('taka')}
-              {(totalsPreview?.serviceFee ?? activeCart.serviceFee).toLocaleString()}
+              {(totalsPreview?.serviceFee ?? activeCart?.serviceFee ?? 0).toLocaleString()}
             </span>
           </div>
           {savingsLine > 0 && (
