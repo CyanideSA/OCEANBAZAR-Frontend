@@ -71,6 +71,10 @@ export interface Product {
   retailPrice: number | null;
   wholesalePrice: number | null;
   pricing: { retail: ProductPricing | null; wholesale: ProductPricing | null };
+  price?: number | null;
+  comparePrice?: number | null;
+  stockQty?: number | null;
+  specifications?: Record<string, string> | string | null;
   ratingAvg?: number | null;
   reviewCount?: number;
 }
